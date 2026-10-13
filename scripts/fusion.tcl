@@ -1,0 +1,70 @@
+####################################################################
+##
+##  Physical synthesis: RTL to a finished layout in one session.
+##  Synthesis places cells as it maps them, so there is no handoff.
+##
+##  Author:   Sne Samal
+##  Version:  1.0
+##  Date:     2026-09-04
+##
+##      fc_shell -f scripts/fusion.tcl
+##
+####################################################################
+
+set FLOW fusion
+source scripts/setup.tcl
+
+set_host_options -max_cores $MAX_CORES
+
+if { [file exists $PNR_LIB] } { file delete -force $PNR_LIB }
+
+create_lib $PNR_LIB -technology $TECH_FILE -ref_libs $REF_LIBS
+report_ref_libs
+
+# No set_non_physical_mode, which is the whole difference from
+# scripts/syn_logical.tcl.
+analyze -format sverilog $RTL_FILES
+elaborate $DESIGN
+set_top_module $DESIGN
+
+redirect -tee -file $RPT_DIR/synth_check.rpt \
+    "check_design -checks netlist -log_file $RPT_DIR/synth_check_netlist.log"
+
+suppress_message ATTR-12
+set_attribute [get_layers $HORIZONTAL_LAYERS] routing_direction horizontal
+set_attribute [get_layers $VERTICAL_LAYERS]   routing_direction vertical
+set_attribute [get_site_defs $SITE_NAME] symmetry "$SITE_SYMMETRY"
+unsuppress_message ATTR-12
+
+set PHYSICAL 1
+source scripts/mcmm.tcl
+
+# Split around the floorplan because a core sized against the macro
+# needs the macro to exist first.
+compile_fusion -to logic_opto
+
+lab_reports synth 0
+
+source scripts/floorplan.tcl
+
+redirect -tee -file $RPT_DIR/place_pre_check.rpt \
+    "check_design -checks pre_placement_stage -log_file $RPT_DIR/place_check.log"
+
+compile_fusion -from initial_place -to final_opto
+
+add_tie_cells \
+    -tie_high_lib_cells [get_lib_cells */$TIE_HI_CELL] \
+    -tie_low_lib_cells  [get_lib_cells */$TIE_LO_CELL]
+
+connect_pg_net -automatic
+legalize_placement
+
+redirect -tee -file $RPT_DIR/place_legality.rpt        {check_legality}
+redirect -tee -file $RPT_DIR/place_pg_drc.rpt          {check_pg_drc}
+redirect -tee -file $RPT_DIR/place_pg_connectivity.rpt {check_pg_connectivity}
+
+lab_reports place
+save_block -label place
+save_lib
+
+source scripts/backend.tcl
