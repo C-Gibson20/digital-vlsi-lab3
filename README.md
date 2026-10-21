@@ -24,10 +24,17 @@ By the end of this laboratory session, you should be able to do the following.
 
 This task is about using TSMC's 65nm memory compiler tool to generate a SRAM block. The compiler is TSMC's own program, called **MC2**. It is delivered inside the PDK rather than by Synopsys or Cadence, so it is the same tool whichever vendor's flow you go on to use. You can find the documentation for it at:
 
-```bash
-echo $SYN_MEMCOMP_DOCS
-ls $SYN_MEMCOMP_DOCS/tsn65lpllspsramwor_20060901_220a
+```text
+/eda/cadence_tools/kits/tsmc/beLibs/65nm/TSMCHOME/sram/Documentation/documents/
 ```
+
+List the available documents with:
+
+```bash
+ls /eda/cadence_tools/kits/tsmc/beLibs/65nm/TSMCHOME/sram/Documentation/documents/
+```
+
+**Working directory and logs:** Run the lab commands from the directory containing this repository's `Makefile`, `scripts/` and `constraints/`. Paths such as `logs/`, `reports/`, `outputs/` and `work/` are relative to that directory. For example, if your lab is in `~/lab3`, the log directory is `~/lab3/logs/`. The build and simulation log paths below assume the V2 Makefile. Lab scripts are read from the local `scripts/` directory; the installed tools and PDK are supplied by the Synopsys environment.
 
 **_Step 1: Launch the memory compiler_**
 
@@ -85,19 +92,47 @@ Genus and Innovus read a memory's Liberty and LEF files directly. Fusion Compile
 make sram
 ```
 
->That runs two scripts. `scripts/sram_lib.tcl` compiles the Liberty to a Synopsys database with Library Compiler, and `scripts/sram_ndm.tcl` builds the NDM from that and the LEF with Library Manager. They are separate because the two tools are separate executables.
+The V2 Makefile creates `logs/` automatically and saves the Library Compiler and Library Manager output, including warning and error details, in **`logs/sram.log`**. The terminal shows the Makefile header followed by the build result, warning/error counts and log path. The counts describe diagnostic lines recorded in the log; a tool may suppress repeated messages. Each run replaces this log.
 
-The library lands in `NDM/` beside the memory's other views. Check it:
+To read the detailed log from the Linux shell, run:
 
 ```bash
-fc_shell
+less logs/sram.log
 ```
+
+Press **q** to leave the log viewer. If the build reports `FAILED`, inspect this log before continuing.
+
+>The `make sram` target runs two local scripts. `scripts/sram_lib.tcl` compiles the Liberty to a Synopsys database with Library Compiler, and `scripts/sram_ndm.tcl` builds the NDM from that and the LEF with Library Manager. They are separate because the two tools are separate executables.
+
+For the memory configuration above, a successful build produces:
+
+| File | Purpose |
+|---|---|
+| `ts1n65lpll32x32m4_220a/DB/ts1n65lpll32x32m4_220a.db` | Compiled timing and power library |
+| `ts1n65lpll32x32m4_220a/NDM/ts1n65lpll32x32m4_220a.ndm` | SRAM reference library for Fusion Compiler |
+
+Check the reference library in Fusion Compiler:
+
+```bash
+mkdir -p logs
+fc_shell -output_log_file logs/sram_check.log
+```
+
+This saves the session output in `logs/sram_check.log`. At the `fc_shell>` prompt, run:
+
 ```tcl
 open_lib ts1n65lpll32x32m4_220a/NDM/ts1n65lpll32x32m4_220a.ndm
 get_attribute [get_lib_cells */TS1N65LPLL32X32M4] width
 get_attribute [get_lib_cells */TS1N65LPLL32X32M4] height
 ```
 
+Compare the reported width and height with the memory compiler's preview. The cell name is `TS1N65LPLL32X32M4`; the `_220a` suffix belongs to the generated directory and filenames.
+
+Exit Fusion Compiler before entering the next Linux shell command:
+
+```tcl
+exit
+```
 
 **_Step 4 - Examine the layout of the memory block_**
 
@@ -170,44 +205,148 @@ Your testbench goes in the same place, as `src/memtest_tb.sv`.
 
 **_Step 2: Synthesize the design with Fusion Compiler_**
 
-```bash
-fc_shell -f scripts/syn_logical.tcl
-```
-
-This is Lab 1's synthesis script. Two things in the log are worth reading:
-
-
-**_Step 3: Generate the physical layout_**
+Run the local logical-synthesis script from the Linux shell:
 
 ```bash
-fc_shell -f scripts/pnr.tcl
+mkdir -p logs
+fc_shell -f scripts/syn_logical.tcl -output_log_file logs/syn_logical.log
 ```
 
-Everything specific to the macro happens in `scripts/floorplan.tcl`. 
+This maps your RTL to standard cells while retaining the SRAM as a hard macro. Session output is displayed in the terminal and saved in **`logs/syn_logical.log`**. The `-output_log_file` option records the session; reports redirected by the script are written separately under **`reports/logical/`**. See the [Synopsys Fusion Compiler User Guide](https://www.scribd.com/document/856392865/fcug) for the session-log option.
 
-When it finishes, look at it:
+On successful completion, the script writes:
+
+| File or directory | Contents |
+|---|---|
+| `outputs/logical/memtest_synth.v` | Synthesised gate-level Verilog netlist, used by the next step and synthesis-level simulation |
+| `outputs/logical/memtest_synth.sdc` | Exported synthesis constraints |
+| `work/memtest_syn.dlib` | Saved logical-synthesis design library |
+
+The synthesis reports are:
+
+| Report | What to inspect |
+|---|---|
+| `reports/logical/synth_check.rpt` and `reports/logical/synth_check_netlist.log` | Design checks performed before technology mapping; unmapped RTL cells at this stage do not establish that the final netlist is unmapped |
+| `reports/logical/synth_timing_max.rpt` | Maximum-delay paths and setup slack |
+| `reports/logical/synth_timing_min.rpt` | Minimum-delay paths and hold slack |
+| `reports/logical/synth_area.rpt` | Cell area |
+| `reports/logical/synth_qor.rpt` | Quality-of-results summary, including timing and area |
+| `reports/logical/synth_power.rpt` | Estimated power and any warnings emitted while generating the power report |
+
+Check these two points before proceeding:
+
+1. **The SRAM reference is available and the design links correctly.** In `logs/syn_logical.log`, check that the reference-library listing includes `ts1n65lpll32x32m4_220a.ndm` and investigate any unresolved references to `TS1N65LPLL32X32M4`.
+2. **The clock constraints and timing results are meaningful.** The supplied SDC defines `clk` with a 2 ns period (500 MHz). Inspect `synth_timing_max.rpt` and `synth_qor.rpt` for timing violations. If the log reports no valid clocks or uses a default frequency, check the clock before accepting the timing or power results. A completed synthesis run alone does not establish that timing passes.
+
+The script leaves you at the `fc_shell>` prompt. To check the clock and timing in the current design, run:
+
+```tcl
+current_scenario func_tc
+report_clocks
+check_timing
+report_timing -delay_type max -max_paths 5
+```
+
+This diagnostic output is also recorded in `logs/syn_logical.log`. When you have finished inspecting the results, return to the Linux shell before starting Step 3:
+
+```tcl
+exit
+```
+
+**_Step 3: Place and route the synthesised netlist_**
+
+Step 2 performed logical synthesis. This step reads `outputs/logical/memtest_synth.v` into a new physical design library, then performs floorplanning, placement, clock-tree synthesis and routing. The directory name `logical` identifies this two-step flow, including its physical layout. Timing constraints and derates are loaded again through `scripts/mcmm.tcl`.
+
+From the Linux shell, run:
+
+```bash
+mkdir -p logs
+fc_shell -f scripts/pnr.tcl -output_log_file logs/pnr.log
+```
+
+Session output is displayed in the terminal and saved in **`logs/pnr.log`**. Macro placement and power-grid setup are in `scripts/floorplan.tcl`; clock-tree synthesis, routing, final checks and export are in `scripts/backend.tcl`.
+
+On successful completion, the flow produces:
+
+| File or directory | Contents |
+|---|---|
+| `outputs/logical/memtest.gds` | GDSII layout with the standard-cell and SRAM geometry merged in; import this into Custom Compiler |
+| `outputs/logical/memtest_layout.v` | Routed gate-level netlist for simulation |
+| `outputs/logical/memtest_tc.sdf` | Delay data for layout-level simulation at the `tc` corner |
+| `outputs/logical/memtest.def` | Placement and routing data |
+| `outputs/logical/memtest.lef` | Physical abstract of the completed design |
+| `outputs/logical/memtest_final.sdc` | Exported final timing constraints |
+| `outputs/logical/` files with the `memtest` prefix | Extracted parasitic data written by `write_parasitics`; check the export messages in `logs/pnr.log` for the generated filenames |
+| `work/memtest_logical.dlib` | Physical design library with saved floorplan, placement, clock-tree, routing and finish checkpoints |
+
+Reports are saved in **`reports/logical/`**, alongside the synthesis reports. The stage prefixes are `place`, `cts`, `route` and `finish`. Each stage writes `_timing_max.rpt`, `_timing_min.rpt`, `_area.rpt`, `_qor.rpt` and `_power.rpt`; utilisation and congestion reports are also attempted where supported.
+
+For the final result, begin with `finish_timing_max.rpt`, `finish_timing_min.rpt`, `finish_qor.rpt`, `finish_area.rpt` and `finish_power.rpt`. Also inspect these checks in the same directory:
+
+| Report | Check |
+|---|---|
+| `finish_legality.rpt` | Placement legality |
+| `finish_routes.rpt` | Routing violations |
+| `finish_pg_drc.rpt` | Power-grid design-rule violations |
+| `finish_pg_connectivity.rpt` | Power and ground connectivity |
+| `finish_lvs.rpt` | In-tool layout-versus-netlist connectivity check |
+
+Earlier checks are saved as `floorplan_pg_*.rpt`, `place_pre_check.rpt`, `place_check.log`, `place_legality.rpt`, `place_pg_*.rpt` and `route_check.rpt`. Clock-tree reports `cts_clock_qor.rpt` and `cts_clock_skew.rpt` are attempted where supported. Some checks report violations without stopping the script, so inspect their results even if the flow reaches the export step.
+
+When the script finishes, it leaves the design open. At the `fc_shell>` prompt, display it with:
 
 ```tcl
 start_gui
 ```
 
->You can also run the whole thing as physical synthesis, as in Lab 1 Task 5, with `fc_shell -f scripts/fusion.tcl`. It uses the same floorplan.
+**Optional: run the physical-synthesis flow.** As in Lab 1 Task 5, you can instead process the RTL through physical synthesis and layout in one session. It uses the same floorplan. Start this from the Linux shell after exiting any previous Fusion Compiler session:
+
+```bash
+mkdir -p logs
+fc_shell -f scripts/fusion.tcl -output_log_file logs/fusion.log
+```
+
+This records the session in `logs/fusion.log`, writes reports to `reports/fusion/`, and saves the final layout outputs in `outputs/fusion/`, including `memtest.gds`, `memtest_layout.v` and `memtest_tc.sdf`. Its design library is `work/memtest_fusion.dlib`.
 
 **_Step 4: Examine the layout_**
 
-The flow writes a GDSII stream at `outputs/logical/memtest.gds`. Import it into Custom Compiler and examine it.
+Import `outputs/logical/memtest.gds` into Custom Compiler using the Stream Import procedure from Task 1, with **Top Cell** set to `memtest` and a new destination library attached to `tsmcN65`. If you ran the optional physical-synthesis flow, use `outputs/fusion/memtest.gds`. Open the `layout` view and use **f** and **SHIFT-f** to fit the layout and expand its hierarchy.
+
+When you have finished with Fusion Compiler, enter `exit` at its prompt to return to the Linux shell before running the simulation commands below.
 
 **_Step 5: Design a testbench_**
 
 Write a testbench. Put it in `src/memtest_tb.sv`.
 
-Then simulate at all three levels, as in Lab 1 Task 4:
+Then simulate at all three levels, as in Lab 1 Task 4. Run each command from the Linux shell and inspect its logs before moving to the next level. The Makefile creates `logs/` and `sim/` automatically.
 
 ```bash
 make sim-rtl
+```
+
+This simulates the original RTL with the SRAM model. Compilation output is saved in **`logs/vcs_rtl.log`** and simulation output in **`logs/sim_rtl.log`**. If the testbench generates `waveform.vcd`, it is moved to **`sim/rtl.vcd`**.
+
+```bash
 make sim-synth
+```
+
+This simulates `outputs/logical/memtest_synth.v` with the standard-cell and SRAM models. Compilation output is saved in **`logs/vcs_synth.log`** and simulation output in **`logs/sim_synth.log`**. The waveform, if generated, is saved as **`sim/synth.vcd`**.
+
+```bash
 make sim-layout FLOW=logical
 ```
+
+This simulates `outputs/logical/memtest_layout.v` with delay back-annotation from `outputs/logical/memtest_tc.sdf`. Compilation output is saved in **`logs/vcs_layout_logical.log`** and simulation output in **`logs/sim_layout_logical.log`**. The waveform, if generated, is saved as **`sim/layout_logical.vcd`**.
+
+For the optional physical-synthesis flow, use:
+
+```bash
+make sim-layout FLOW=fusion
+```
+
+This reads the layout netlist and SDF from `outputs/fusion/`. Its logs are **`logs/vcs_layout_fusion.log`** and **`logs/sim_layout_fusion.log`**, and its waveform, if generated, is **`sim/layout_fusion.vcd`**.
+
+Check the testbench's pass/fail messages and any SDF annotation or timing-check warnings in the simulation logs. A simulator finishing does not by itself establish that the test passed. Re-running a stage reuses its log and output filenames; copy any results you want to retain before repeating it.
 
 ---
 ### Task 3 - Memory Self-test
