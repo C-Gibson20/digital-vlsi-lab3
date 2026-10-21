@@ -34,7 +34,7 @@ List the available documents with:
 ls /eda/cadence_tools/kits/tsmc/beLibs/65nm/TSMCHOME/sram/Documentation/documents/
 ```
 
-**Working directory and logs:** Run the lab commands from the directory containing this repository's `Makefile`, `scripts/` and `constraints/`. Paths such as `logs/`, `reports/`, `outputs/` and `work/` are relative to that directory. For example, if your lab is in `~/lab3`, the log directory is `~/lab3/logs/`. The build and simulation log paths below assume the V2 Makefile. Lab scripts are read from the local `scripts/` directory; the installed tools and PDK are supplied by the Synopsys environment.
+**Working directory and logs:** Run the lab commands from the directory containing this repository's `Makefile`, `scripts/` and `constraints/`. Paths such as `logs/`, `reports/`, `outputs/` and `work/` are relative to that directory. For example, if your lab is in `~/lab3`, the log directory is `~/lab3/logs/`. The build and simulation log paths below assume the Makefile. Lab scripts are read from the local `scripts/` directory; the installed tools and PDK are supplied by the Synopsys environment.
 
 **_Step 1: Launch the memory compiler_**
 
@@ -92,7 +92,7 @@ Genus and Innovus read a memory's Liberty and LEF files directly. Fusion Compile
 make sram
 ```
 
-The V2 Makefile creates `logs/` automatically and saves the Library Compiler and Library Manager output, including warning and error details, in **`logs/sram.log`**. The terminal shows the Makefile header followed by the build result, warning/error counts and log path. The counts describe diagnostic lines recorded in the log; a tool may suppress repeated messages. Each run replaces this log.
+The Makefile creates `logs/` automatically and saves the Library Compiler and Library Manager output, including warning and error details, in **`logs/sram.log`**. The terminal shows the Makefile header followed by the build result, warning/error counts and log path. The counts describe diagnostic lines recorded in the log; a tool may suppress repeated messages. Each run replaces this log.
 
 To read the detailed log from the Linux shell, run:
 
