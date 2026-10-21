@@ -3,9 +3,9 @@
 ##  Logical synthesis: RTL to a gate level netlist, no physical
 ##  data. The netlist and SDC it writes are the handoff to pnr.tcl.
 ##
-##  Author:   Sne Samal
-##  Version:  1.0
-##  Date:     2026-09-04
+##  Author:   Shuanghua Liu, Sne Samal
+##  Version:  2.0
+##  Date:     2026-10-21
 ##
 ##      fc_shell -f scripts/syn_logical.tcl
 ##

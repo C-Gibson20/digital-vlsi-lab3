@@ -3,9 +3,9 @@
 ##  Paths to the views the memory compiler generated.
 ##  The only place the memory is named.
 ##
-##  Author:   Sne Samal
-##  Version:  1.0
-##  Date:     2026-09-04
+##  Author:   Shuanghua Liu, Sne Samal
+##  Version:  2.0
+##  Date:     2026-10-21
 ##
 ####################################################################
 

@@ -3,9 +3,9 @@
 ##  Physical synthesis: RTL to a finished layout in one session.
 ##  Synthesis places cells as it maps them, so there is no handoff.
 ##
-##  Author:   Sne Samal
-##  Version:  1.0
-##  Date:     2026-09-04
+##  Author:   Shuanghua Liu, Sne Samal
+##  Version:  2.0
+##  Date:     2026-10-21
 ##
 ##      fc_shell -f scripts/fusion.tcl
 ##

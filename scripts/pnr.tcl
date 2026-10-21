@@ -3,9 +3,9 @@
 ##  Place and route a synthesised netlist through to a finished
 ##  layout. Reads the netlist from syn_logical.tcl.
 ##
-##  Author:   Sne Samal
-##  Version:  1.0
-##  Date:     2026-09-04
+##  Author:   Shuanghua Liu, Sne Samal
+##  Version:  2.0
+##  Date:     2026-10-21
 ##
 ##      fc_shell -f scripts/pnr.tcl
 ##

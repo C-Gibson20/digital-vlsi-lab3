@@ -3,9 +3,9 @@
 ##  Build the memory's NDM reference library from its LEF
 ##  and the database sram_lib.tcl wrote.
 ##
-##  Author:   Sne Samal
-##  Version:  1.0
-##  Date:     2026-09-04
+##  Author:   Shuanghua Liu, Sne Samal
+##  Version:  2.0
+##  Date:     2026-10-21
 ##
 ##      lm_shell -f scripts/sram_ndm.tcl
 ##

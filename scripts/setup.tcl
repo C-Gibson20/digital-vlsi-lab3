@@ -3,9 +3,9 @@
 ##  Kit, memory, design settings and directories.
 ##  Sourced first by every flow script, which sets FLOW.
 ##
-##  Author:   Sne Samal
-##  Version:  1.0
-##  Date:     2026-09-04
+##  Author:   Shuanghua Liu, Sne Samal
+##  Version:  2.0
+##  Date:     2026-10-21
 ##
 ####################################################################
 

@@ -3,9 +3,9 @@
 ##  Core area, macro placement, power grid, tap cells and pins.
 ##  Sourced by pnr.tcl and fusion.tcl once the design is mapped.
 ##
-##  Author:   Sne Samal
-##  Version:  1.0
-##  Date:     2026-09-04
+##  Author:   Shuanghua Liu, Sne Samal
+##  Version:  2.0
+##  Date:     2026-10-21
 ##
 ####################################################################
 
