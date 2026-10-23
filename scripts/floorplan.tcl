@@ -38,6 +38,13 @@ create_keepout_margin \
     -outer [list $MACRO_HALO $MACRO_HALO $MACRO_HALO $MACRO_HALO] \
     $MACRO
 
+# CHALLENGE: comment out lines 12-39 (macro sizing, placement, keepout) and use:
+# initialize_floorplan \
+#     -site_def         $SITE_NAME \
+#     -core_utilization $CORE_UTIL \
+#     -side_ratio       {1 1} \
+#     -core_offset      $CORE_OFFSET
+
 ####################################################################
 ## Power and ground nets
 ####################################################################
@@ -112,6 +119,9 @@ set_pg_strategy macro_conn_strategy \
 # Rails are on M1 and the rings above it, so every connection is a via.
 set_pg_strategy_via_rule pg_via_rule \
     -via_rule [list [list intersection: adjacent] [list via_master: default]]
+
+# CHALLENGE: comment out macro_ring_pattern, macro_ring_strategy,
+# macro_conn_pattern, macro_conn_strategy, and these two:
 
 # The rails stop at the first thing they meet, so they go last.
 compile_pg -strategies macro_ring_strategy -via_rule pg_via_rule

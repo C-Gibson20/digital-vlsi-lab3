@@ -16,7 +16,7 @@ SDF_CORNER ?= tc
 OUT  := outputs/$(FLOW)
 SIM  := sim
 LOGS := logs
-SRC  := src/$(DESIGN).sv src/counter.sv src/control.sv src/PRBS.sv
+SRC  := src/$(DESIGN).sv src/counter.sv src/control.sv src/PRBS.sv # src/signature_analyser.sv src/xor_array.sv src/comparator.sv src/SRAM32X32.sv
 TB   := src/$(DESIGN)_tb.sv
 
 # The memory's own Verilog model, needed by every simulation including
@@ -124,6 +124,8 @@ sim-layout:
 	$(call run_sim,$(VCS) +sdfverbose $$SYN_SIM_MODELS $(SRAM_V) \
 	    $(OUT)/$(DESIGN)_layout.v $(TB) \
 	    -sdf typ:$(DESIGN)_tb.dut:$(OUT)/$(DESIGN)_$(SDF_CORNER).sdf,layout_$(FLOW))
+
+# CHALLENGE: drop $(SRAM_V) from sim-rtl, sim-synth and sim-layout
 
 ####################################################################
 # Waveforms

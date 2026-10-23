@@ -14,9 +14,12 @@ if { ![info exists env(SYN_KIT_TCL)] } { error "SYN_KIT_TCL is not set. Load the
 
 source $env(SYN_KIT_TCL)
 source scripts/sram.tcl
+# CHALLENGE: no macro. Keep the name, mcmm/SDF/power use it as the corner label
+# set SRAM_LABEL tc
 
 # The macro is a reference library like any other.
 lappend REF_LIBS $SRAM_NDM
+# CHALLENGE: comment out the two lines above
 
 # The kit is characterised at three corners, the memory at one.
 set CORNER_LABELS $SRAM_LABEL
@@ -28,7 +31,8 @@ set CORNER_LABELS $SRAM_LABEL
 set DESIGN   memtest
 set CLK_PORT clk
 
-set RTL_FILES [list src/memtest.sv src/counter.sv src/control.sv src/PRBS.sv]
+set RTL_FILES [list src/memtest.sv src/counter.sv src/control.sv src/PRBS.sv src/xor_array.sv src/signature_analyser.sv src/comparator.sv]
+# set RTL_FILES [list src/memtest.sv src/counter.sv src/control.sv src/PRBS.sv src/xor_array.sv src/signature_analyser.sv src/comparator.sv, src/SRAM32X32.sv]
 set SDC_FILE  constraints/$DESIGN.sdc
 
 ####################################################################
@@ -42,6 +46,8 @@ set MACRO_MARGIN 25         ;# macro to core edge, um
 set CELL_STRIP   40         ;# core height above the macro, um
 set MACRO_HALO    5         ;# keepout around the macro, um
 set CORE_OFFSET  10         ;# core to die edge, um
+# CHALLENGE: no macro to size from, so size by utilisation
+# set CORE_UTIL    0.6
 
 set RING_WIDTH   1.0        ;# core ring, um
 set RING_SPACING 0.5

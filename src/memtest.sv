@@ -61,6 +61,18 @@ module memtest (
         .TSEL(2'b01)
     );
 
+    // Instantiate SRAM module Challenge
+    // SRAM32X32 mem32x32(
+    //     .CLK(clk),
+    //     .A(address),
+    //     .D({prbs, prbs}),
+    //     .Q(DATA),
+    //     .CEB(CEB),
+    //     .WEB(WEB),
+    //     .BWEB(32'h0),
+    //     .TSEL(2'b01)
+    // );
+
     // Instantiate XOR array module
     // xor_array xor_block (
     //    .data_in(DATA),

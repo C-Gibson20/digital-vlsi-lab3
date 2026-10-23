@@ -108,6 +108,7 @@ write_parasitics -corner $SDF_CORNER -output $OUT_DIR/${DESIGN}
 write_gds \
     -layer_map   $GDS_MAP \
     -merge_files [list $CELL_GDS $SRAM_GDS] \
+#   CHALLENGE: -merge_files [list $CELL_GDS] \
     -design      $DESIGN \
     $LAYOUT_GDS
 
