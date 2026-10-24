@@ -21,8 +21,8 @@ set_clock_transition 0.05 [get_clocks clk]
 set_max_transition 0.2 [current_design]
 
 # 20 percent of the period budgeted at each boundary.
-set_input_delay  0.4 -clock clk [get_ports rst]
-set_output_delay 0.4 -clock clk [get_ports data_out[*]]
+set_input_delay  0.4 -clock clk [get_ports {reset TEST}]
+set_output_delay 0.4 -clock clk [get_ports {DATA[*] GO_NO_GO}]
 
 set_load 0.01 [all_outputs]
 

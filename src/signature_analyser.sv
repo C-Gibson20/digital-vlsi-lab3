@@ -17,7 +17,7 @@ module signature_analyser (
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
             signature <= 16'h0000;
-        end else if (clear) begins
+        end else if (clear) begin
             signature <= 16'h0000;
         end else if (enable) begin
             // Each stage takes the previous stage's Q XORed with its input bit:

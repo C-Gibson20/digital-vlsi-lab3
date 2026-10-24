@@ -16,7 +16,7 @@ SDF_CORNER ?= tc
 OUT  := outputs/$(FLOW)
 SIM  := sim
 LOGS := logs
-SRC  := src/$(DESIGN).sv src/counter.sv src/control.sv src/PRBS.sv # src/signature_analyser.sv src/xor_array.sv src/comparator.sv src/SRAM32X32.sv
+SRC  := src/$(DESIGN).sv src/counter.sv src/control.sv src/PRBS.sv src/signature_analyser.sv src/xor_array.sv src/comparator.sv # src/SRAM32X32.sv
 TB   := src/$(DESIGN)_tb.sv
 
 # The memory's own Verilog model, needed by every simulation including
@@ -117,11 +117,11 @@ sim-rtl:
 
 ## sim-synth: simulate the synthesised netlist, real cells, no wire delay
 sim-synth:
-	$(call run_sim,$(VCS) $$SYN_SIM_MODELS $(SRAM_V) $(OUT)/$(DESIGN)_synth.v $(TB),synth)
+	$(call run_sim,$(VCS) +define+GATE_LEVEL $$SYN_SIM_MODELS $(SRAM_V) $(OUT)/$(DESIGN)_synth.v $(TB),synth)
 
 ## sim-layout: simulate the routed layout with SDF back-annotation
 sim-layout:
-	$(call run_sim,$(VCS) +sdfverbose $$SYN_SIM_MODELS $(SRAM_V) \
+	$(call run_sim,$(VCS) +sdfverbose +define+GATE_LEVEL $$SYN_SIM_MODELS $(SRAM_V) \
 	    $(OUT)/$(DESIGN)_layout.v $(TB) \
 	    -sdf typ:$(DESIGN)_tb.dut:$(OUT)/$(DESIGN)_$(SDF_CORNER).sdf,layout_$(FLOW))
 

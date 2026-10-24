@@ -32,7 +32,7 @@ set DESIGN   memtest
 set CLK_PORT clk
 
 set RTL_FILES [list src/memtest.sv src/counter.sv src/control.sv src/PRBS.sv src/xor_array.sv src/signature_analyser.sv src/comparator.sv]
-# set RTL_FILES [list src/memtest.sv src/counter.sv src/control.sv src/PRBS.sv src/xor_array.sv src/signature_analyser.sv src/comparator.sv, src/SRAM32X32.sv]
+# set RTL_FILES [list src/memtest.sv src/counter.sv src/control.sv src/PRBS.sv src/xor_array.sv src/signature_analyser.sv src/comparator.sv src/SRAM32X32.sv]
 set SDC_FILE  constraints/$DESIGN.sdc
 
 ####################################################################

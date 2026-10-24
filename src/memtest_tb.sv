@@ -3,8 +3,8 @@ module memtest_tb;
     // Clock and reset signals
     logic clk;
     logic reset;
-    // logic TEST; // Task 3 test signal
-    // logic GO_NO_GO; // TASK 3
+    logic TEST; // Task 3 test signal
+    logic GO_NO_GO; // TASK 3
 
     // SRAM data output
     logic [31:0] DATA;
@@ -16,8 +16,8 @@ module memtest_tb;
     memtest dut (
         .clk(clk),
         .reset(reset),
-        // .TEST(TEST), // TASK 3 requires additional test signal
-        // .GO_NO_GO(GO_NO_GO), // TASK 3 requires additional output signal
+        .TEST(TEST), // TASK 3 requires additional test signal
+        .GO_NO_GO(GO_NO_GO), // TASK 3 requires additional output signal
         .DATA(DATA)
     );
 
@@ -74,34 +74,45 @@ module memtest_tb;
     end
 
     // TASK 3: count test starts (SRAM idle -> writing) and analyser enable cycles
-    // int tests_started = 0;
-    // int en_cycles = 0;
-    // logic prev_CEB = 1'b1;
-    // always @(negedge clk) begin
-    //     if (prev_CEB && !dut.mem32x32.CEB && !dut.mem32x32.WEB) tests_started++;
-    //     if (dut.sig_a_en) en_cycles++;
-    //     prev_CEB = dut.mem32x32.CEB;
-    // end
+    int tests_started = 0;
+    int en_cycles = 0;
+    logic prev_CEB = 1'b1;
+    always @(negedge clk) begin
+        if (prev_CEB && !dut.mem32x32.CEB && !dut.mem32x32.WEB) tests_started++;
+`ifndef GATE_LEVEL
+        if (dut.sig_a_en) en_cycles++;   // internal net, removed by synthesis
+`endif
+        prev_CEB = dut.mem32x32.CEB;
+    end
 
     // TASK 3: raise TEST, hold it for hold_cycles, then wait for the test to finish
-    // task automatic run_test(input int hold_cycles);
-    //     tests_started = 0;
-    //     en_cycles = 0;
-    //     @(negedge clk) TEST = 1;
-    //     repeat (hold_cycles) @(negedge clk);
-    //     TEST = 0;
-    //     repeat (80) @(negedge clk);     // 1 + 32 writes + 32 reads + latency, with margin
-    // endtask
+    task automatic run_test(input int hold_cycles);
+        tests_started = 0;
+        en_cycles = 0;
+        @(negedge clk) TEST = 1;
+        repeat (hold_cycles) @(negedge clk);
+        TEST = 0;
+        repeat (80) @(negedge clk);     // 1 + 32 writes + 32 reads + latency, with margin
+    endtask
 
     // TASK 3: one test must start, the analyser must see 32 words, and the result must match
-    // task automatic check_test(input string name, input logic exp_go, input logic [15:0] exp_sig);
-    //     if (GO_NO_GO !== exp_go || dut.signature !== exp_sig || tests_started != 1 || en_cycles != 32) begin
-    //         $display("FAIL %s: GO_NO_GO=%b signature=%h tests=%0d enable_cycles=%0d (expected %b, %h, 1, 32)",
-    //                  name, GO_NO_GO, dut.signature, tests_started, en_cycles, exp_go, exp_sig);
-    //         errors++;
-    //     end else
-    //         $display("PASS %s: GO_NO_GO=%b signature=%h", name, GO_NO_GO, dut.signature);
-    // endtask
+    // At gate level the signature and enable nets no longer exist, so only ports and SRAM pins are checked
+    task automatic check_test(input string name, input logic exp_go, input logic [15:0] exp_sig);
+`ifdef GATE_LEVEL
+        if (GO_NO_GO !== exp_go || tests_started != 1) begin
+            $display("FAIL %s: GO_NO_GO=%b tests=%0d (expected %b, 1)", name, GO_NO_GO, tests_started, exp_go);
+            errors++;
+        end else
+            $display("PASS %s: GO_NO_GO=%b", name, GO_NO_GO);
+`else
+        if (GO_NO_GO !== exp_go || dut.signature !== exp_sig || tests_started != 1 || en_cycles != 32) begin
+            $display("FAIL %s: GO_NO_GO=%b signature=%h tests=%0d enable_cycles=%0d (expected %b, %h, 1, 32)",
+                     name, GO_NO_GO, dut.signature, tests_started, en_cycles, exp_go, exp_sig);
+            errors++;
+        end else
+            $display("PASS %s: GO_NO_GO=%b signature=%h", name, GO_NO_GO, dut.signature);
+`endif
+    endtask
 
     // CHALLENGE: direct test of SRAM32X32, including BWEB, which memtest ties to 0
     // logic [4:0]  ut_A;
@@ -158,7 +169,7 @@ module memtest_tb;
         // Initialize signals
         clk = 0;
         reset = 1;
-        // TEST = 0; // TASK 3 requires additional test signal
+        TEST = 0; // TASK 3 requires additional test signal
 
         // Apply reset for a few clock cycles
         #20;
@@ -167,40 +178,40 @@ module memtest_tb;
         // sram_unit_test(); // CHALLENGE
 
         // Task 2: two full write/read loops, checked by the scoreboard
-        repeat (140) @(posedge clk); // Task 3 will comment this line out
+        // repeat (140) @(posedge clk); // Task 3 will comment this line out
 
         // Test 1: straight after reset GO_NO_GO already shows GO, because the reset
         // signature equals the reference. Known limitation, reported rather than failed
-        // repeat (5) @(negedge clk);
-        // $display("NOTE before any test: GO_NO_GO=%b", GO_NO_GO);
+        repeat (5) @(negedge clk);
+        $display("NOTE before any test: GO_NO_GO=%b", GO_NO_GO);
 
         // Test 2: stuck-at-0 on DATA[3], first test after reset so the PRBS starts at its seed
         // Expected signature from reference_signature.py
-        // check_reads = 0;
-        // force dut.DATA[3] = 1'b0;
-        // run_test(1);
-        // check_test("stuck-at-0 DATA[3]", 1'b0, 16'hE5F5);
-        // release dut.DATA[3];
-        // check_reads = 1;
+        check_reads = 0;
+        force dut.DATA[3] = 1'b0;
+        run_test(1);
+        check_test("stuck-at-0 DATA[3]", 1'b0, 16'hE5F5);
+        release dut.DATA[3];
+        check_reads = 1;
 
         // Test 3: fault-free memory, TEST held high past the end: must run once and pass
         // Also checks the analyser was cleared after the failed test
-        // run_test(100);
-        // check_test("good memory, TEST held", 1'b1, 16'h0000);
+        run_test(100);
+        check_test("good memory, TEST held", 1'b1, 16'h0000);
 
         // Test 4: repeat without reset, must pass again
-        // run_test(1);
-        // check_test("good memory, repeat", 1'b1, 16'h0000);
+        run_test(1);
+        check_test("good memory, repeat", 1'b1, 16'h0000);
 
         // Test 5: same stuck bit in both halves cancels in the XOR array. Known limitation
-        // check_reads = 0;
-        // force dut.DATA[3] = 1'b0;
-        // force dut.DATA[19] = 1'b0;
-        // run_test(1);
-        // check_test("cancelling fault DATA[3] and DATA[19] (undetected)", 1'b1, 16'h0000);
-        // release dut.DATA[3];
-        // release dut.DATA[19];
-        // check_reads = 1;
+        check_reads = 0;
+        force dut.DATA[3] = 1'b0;
+        force dut.DATA[19] = 1'b0;
+        run_test(1);
+        check_test("cancelling fault DATA[3] and DATA[19] (undetected)", 1'b1, 16'h0000);
+        release dut.DATA[3];
+        release dut.DATA[19];
+        check_reads = 1;
 
         // Summary
         if (writes == 0 || reads == 0) begin
