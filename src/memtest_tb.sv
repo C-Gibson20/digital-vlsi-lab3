@@ -46,17 +46,17 @@ module memtest_tb;
             end
             read_pending = 1'b0;
 
-            if (!dut.CEB) begin
-                // Counter and FSM address must agree and step through 0..31 in order
-                if (dut.address !== exp_addr || dut.ctrl.address !== exp_addr) begin
-                    $display("ERROR %0t: address counter=%0d FSM=%0d, expected %0d", $time, dut.address, dut.ctrl.address, exp_addr);
+            if (!dut.mem32x32.CEB) begin
+                // Address must step through 0..31 in order
+                if (dut.mem32x32.A !== exp_addr) begin
+                    $display("ERROR %0t: address=%0d, expected %0d", $time, dut.mem32x32.A, exp_addr);
                     errors++;
                 end
 
-                if (!dut.WEB) begin
+                if (!dut.mem32x32.WEB) begin
                     // Write: PRBS must match the model, and the word is recorded
-                    if (dut.prbs !== exp_prbs) begin
-                        $display("ERROR %0t: PRBS=%h, expected %h", $time, dut.prbs, exp_prbs);
+                    if (dut.mem32x32.D[15:0] !== exp_prbs) begin
+                        $display("ERROR %0t: PRBS=%h, expected %h", $time, dut.mem32x32.D[15:0], exp_prbs);
                         errors++;
                     end
                     exp_mem[exp_addr] = {exp_prbs, exp_prbs};
@@ -73,14 +73,14 @@ module memtest_tb;
         end
     end
 
-    // TASK 3: count test starts (IDLE -> WRITE) and analyser enable cycles
+    // TASK 3: count test starts (SRAM idle -> writing) and analyser enable cycles
     // int tests_started = 0;
     // int en_cycles = 0;
-    // logic [1:0] prev_state = 2'b00;
+    // logic prev_CEB = 1'b1;
     // always @(negedge clk) begin
-    //     if (prev_state == 2'b00 && dut.ctrl.current_state == 2'b01) tests_started++;
+    //     if (prev_CEB && !dut.mem32x32.CEB && !dut.mem32x32.WEB) tests_started++;
     //     if (dut.sig_a_en) en_cycles++;
-    //     prev_state = dut.ctrl.current_state;
+    //     prev_CEB = dut.mem32x32.CEB;
     // end
 
     // TASK 3: raise TEST, hold it for hold_cycles, then wait for the test to finish
