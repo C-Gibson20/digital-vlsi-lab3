@@ -91,7 +91,6 @@ module memtest (
 
     // Instantiate comparator module
     // comparator comp (
-    //    .clk(clk),
     //    .data_in1(signature),
     //    .data_in2(REF_SIGNATURE),
     //    .equal(GO_NO_GO)
