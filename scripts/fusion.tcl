@@ -23,7 +23,12 @@ report_ref_libs
 
 # No set_non_physical_mode, which is the whole difference from
 # scripts/syn_logical.tcl.
-analyze -format sverilog $RTL_FILES
+# RTL_SRAM selects the challenge SRAM inside memtest.sv
+if { $RTL_SRAM } {
+    analyze -format sverilog -define RTL_SRAM $RTL_FILES
+} else {
+    analyze -format sverilog $RTL_FILES
+}
 elaborate $DESIGN
 set_top_module $DESIGN
 

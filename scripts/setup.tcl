@@ -13,27 +13,58 @@ if { ![info exists FLOW] } { error "Set FLOW to logical or fusion before sourcin
 if { ![info exists env(SYN_KIT_TCL)] } { error "SYN_KIT_TCL is not set. Load the PDK first." }
 
 source $env(SYN_KIT_TCL)
-source scripts/sram.tcl
-# CHALLENGE: no macro. Keep the name, mcmm/SDF/power use it as the corner label
-# set SRAM_LABEL tc
-
-# The macro is a reference library like any other.
-lappend REF_LIBS $SRAM_NDM
-# CHALLENGE: comment out the two lines above
-
-# The kit is characterised at three corners, the memory at one.
-set CORNER_LABELS $SRAM_LABEL
 
 ####################################################################
 ## Design
 ####################################################################
+# Chosen when fc_shell starts, so no script needs editing between runs:
+#   fc_shell -f scripts/fusion.tcl                  memtest with the Task 1 macro
+#   MEM=rtl fc_shell -f scripts/fusion.tcl          memtest with the challenge RTL SRAM
+#   TOP=SRAM32X32 fc_shell -f scripts/fusion.tcl    CHALLENGE: RTL SRAM on its own
+#   TOP=sram_macro fc_shell -f scripts/fusion.tcl   CHALLENGE: Task 1 macro on its own
 
-set DESIGN   memtest
-set CLK_PORT clk
+set DESIGN   [expr {[info exists env(TOP)] ? $env(TOP) : "memtest"}]
+set RTL_SRAM [expr {$DESIGN eq "SRAM32X32" ||
+                    ($DESIGN eq "memtest" && [info exists env(MEM)] && $env(MEM) eq "rtl")}]
 
-set RTL_FILES [list src/memtest.sv src/counter.sv src/control.sv src/PRBS.sv src/xor_array.sv src/signature_analyser.sv src/comparator.sv]
-# set RTL_FILES [list src/memtest.sv src/counter.sv src/control.sv src/PRBS.sv src/xor_array.sv src/signature_analyser.sv src/comparator.sv src/SRAM32X32.sv]
-set SDC_FILE  constraints/$DESIGN.sdc
+switch $DESIGN {
+    memtest {
+        set CLK_PORT  clk
+        set RTL_FILES [list src/memtest.sv src/counter.sv src/control.sv src/PRBS.sv \
+                            src/xor_array.sv src/signature_analyser.sv src/comparator.sv]
+        set SDC_FILE  constraints/memtest.sdc
+        if { $RTL_SRAM } {
+            lappend RTL_FILES src/SRAM32X32.sv
+            # Same shape as the macro version's core (226.6 x 119.0 um), so the layouts compare
+            set CORE_RATIO {1.9 1}
+        }
+    }
+    SRAM32X32 {
+        set CLK_PORT  CLK
+        set RTL_FILES [list src/SRAM32X32.sv]
+        set SDC_FILE  constraints/sram_block.sdc
+        # Same shape as the Task 1 macro (176.765 x 55.155 um), so the layouts compare
+        set CORE_RATIO {3.2 1}
+    }
+    sram_macro {
+        set CLK_PORT  CLK
+        set RTL_FILES [list src/sram_macro.sv]
+        set SDC_FILE  constraints/sram_block.sdc
+    }
+    default { error "Unknown TOP '$DESIGN'. Use memtest, SRAM32X32 or sram_macro." }
+}
+
+if { $RTL_SRAM } {
+    # No macro. Keep the name, mcmm/SDF/power use it as the corner label
+    set SRAM_LABEL tc
+} else {
+    source scripts/sram.tcl
+    # The macro is a reference library like any other.
+    lappend REF_LIBS $SRAM_NDM
+}
+
+# The kit is characterised at three corners, the memory at one.
+set CORNER_LABELS $SRAM_LABEL
 
 ####################################################################
 ## Floorplan
@@ -46,8 +77,8 @@ set MACRO_MARGIN 25         ;# macro to core edge, um
 set CELL_STRIP   40         ;# core height above the macro, um
 set MACRO_HALO    5         ;# keepout around the macro, um
 set CORE_OFFSET  10         ;# core to die edge, um
-# CHALLENGE: no macro to size from, so size by utilisation
-# set CORE_UTIL    0.6
+set CORE_UTIL    0.6        ;# RTL SRAM only: no macro to size from
+if { ![info exists CORE_RATIO] } { set CORE_RATIO {1 1} }   ;# RTL SRAM only: core width to height
 
 set RING_WIDTH   1.0        ;# core ring, um
 set RING_SPACING 0.5
@@ -75,6 +106,12 @@ set POWER_SCENARIO func_$SRAM_LABEL
 set WORK_DIR work
 set OUT_DIR  outputs/$FLOW
 set RPT_DIR  reports/$FLOW
+
+# The two challenge blocks get their own folders, so neither overwrites memtest
+if { $DESIGN ne "memtest" } {
+    set OUT_DIR $OUT_DIR/$DESIGN
+    set RPT_DIR $RPT_DIR/$DESIGN
+}
 
 foreach d [list $WORK_DIR $OUT_DIR $RPT_DIR] { file mkdir $d }
 

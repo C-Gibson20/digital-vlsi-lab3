@@ -49,7 +49,9 @@ module memtest (
         .prbs(prbs)
     );
 
-    // Instantiate SRAM module
+    // Instantiate SRAM module: the Task 1 macro, or the challenge RTL SRAM
+    // when RTL_SRAM is defined (MEM=rtl in the Makefile and fc_shell)
+`ifndef RTL_SRAM
     TS1N65LPLL32X32M4 mem32x32 (
         .CLK(clk),
         .A(address),
@@ -60,18 +62,18 @@ module memtest (
         .BWEB(32'h0),
         .TSEL(2'b01)
     );
-
-    // Instantiate SRAM module Challenge
-    // SRAM32X32 mem32x32(
-    //     .CLK(clk),
-    //     .A(address),
-    //     .D({prbs, prbs}),
-    //     .Q(DATA),
-    //     .CEB(CEB),
-    //     .WEB(WEB),
-    //     .BWEB(32'h0),
-    //     .TSEL(2'b01)
-    // );
+`else
+    SRAM32X32 mem32x32(
+        .CLK(clk),
+        .A(address),
+        .D({prbs, prbs}),
+        .Q(DATA),
+        .CEB(CEB),
+        .WEB(WEB),
+        .BWEB(32'h0),
+        .TSEL(2'b01)
+    );
+`endif
 
     // Instantiate XOR array module
     xor_array xor_block (

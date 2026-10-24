@@ -105,10 +105,13 @@ write_parasitics -corner $SDF_CORNER -output $OUT_DIR/${DESIGN}
 # The database holds where every cell sits and none of their geometry,
 # so both the cell and macro streams have to be merged in or the GDS
 # is a layout of empty boxes. The layer map belongs to the metal stack.
+# With the RTL SRAM there is no macro, so only the cell stream is merged.
+set gds_merge [list $CELL_GDS]
+if { !$RTL_SRAM } { lappend gds_merge $SRAM_GDS }
+
 write_gds \
     -layer_map   $GDS_MAP \
-    -merge_files [list $CELL_GDS $SRAM_GDS] \
-#   CHALLENGE: -merge_files [list $CELL_GDS] \
+    -merge_files $gds_merge \
     -design      $DESIGN \
     $LAYOUT_GDS
 

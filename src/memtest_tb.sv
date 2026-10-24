@@ -26,6 +26,16 @@ module memtest_tb;
         #5 clk = ~clk;
     end
 
+    // CHALLENGE: the RTL SRAM (RTL_SRAM, set in the Makefile) is flattened into cells at gate
+    // level, so its pins cannot be probed there. Its unit test only runs in RTL simulation
+`ifdef RTL_SRAM
+`ifdef GATE_LEVEL
+`define NO_SRAM_PINS
+`else
+`define SRAM_UNIT_TEST
+`endif
+`endif
+
     // Scoreboard: checks the counter, PRBS, FSM and SRAM read-back every cycle
     // Sampled on the falling edge, when every signal has settled
     logic [15:0] exp_prbs = 16'd1;      // software copy of PRBS.sv
@@ -37,6 +47,7 @@ module memtest_tb;
     int          writes = 0;
     int          reads = 0;
 
+`ifndef NO_SRAM_PINS
     always @(negedge clk) begin
         if (!reset) begin
             // SRAM output is valid the cycle after the read was issued
@@ -72,17 +83,20 @@ module memtest_tb;
             end
         end
     end
+`endif
 
     // TASK 3: count test starts (SRAM idle -> writing) and analyser enable cycles
     int tests_started = 0;
     int en_cycles = 0;
     logic prev_CEB = 1'b1;
     always @(negedge clk) begin
+`ifndef NO_SRAM_PINS
         if (prev_CEB && !dut.mem32x32.CEB && !dut.mem32x32.WEB) tests_started++;
+        prev_CEB = dut.mem32x32.CEB;
+`endif
 `ifndef GATE_LEVEL
         if (dut.sig_a_en) en_cycles++;   // internal net, removed by synthesis
 `endif
-        prev_CEB = dut.mem32x32.CEB;
     end
 
     // TASK 3: raise TEST, hold it for hold_cycles, then wait for the test to finish
@@ -98,7 +112,13 @@ module memtest_tb;
     // TASK 3: one test must start, the analyser must see 32 words, and the result must match
     // At gate level the signature and enable nets no longer exist, so only ports and SRAM pins are checked
     task automatic check_test(input string name, input logic exp_go, input logic [15:0] exp_sig);
-`ifdef GATE_LEVEL
+`ifdef NO_SRAM_PINS
+        if (GO_NO_GO !== exp_go) begin
+            $display("FAIL %s: GO_NO_GO=%b (expected %b)", name, GO_NO_GO, exp_go);
+            errors++;
+        end else
+            $display("PASS %s: GO_NO_GO=%b", name, GO_NO_GO);
+`elsif GATE_LEVEL
         if (GO_NO_GO !== exp_go || tests_started != 1) begin
             $display("FAIL %s: GO_NO_GO=%b tests=%0d (expected %b, 1)", name, GO_NO_GO, tests_started, exp_go);
             errors++;
@@ -114,51 +134,53 @@ module memtest_tb;
 `endif
     endtask
 
+`ifdef SRAM_UNIT_TEST
     // CHALLENGE: direct test of SRAM32X32, including BWEB, which memtest ties to 0
-    // logic [4:0]  ut_A;
-    // logic [31:0] ut_D, ut_Q, ut_BWEB;
-    // logic        ut_CEB = 1'b1;
-    // logic        ut_WEB = 1'b1;
-    // SRAM32X32 sram_ut (
-    //     .CLK(clk), .A(ut_A), .D(ut_D), .Q(ut_Q),
-    //     .CEB(ut_CEB), .WEB(ut_WEB), .BWEB(ut_BWEB), .TSEL(2'b01)
-    // );
+    logic [4:0]  ut_A;
+    logic [31:0] ut_D, ut_Q, ut_BWEB;
+    logic        ut_CEB = 1'b1;
+    logic        ut_WEB = 1'b1;
+    SRAM32X32 sram_ut (
+        .CLK(clk), .A(ut_A), .D(ut_D), .Q(ut_Q),
+        .CEB(ut_CEB), .WEB(ut_WEB), .BWEB(ut_BWEB), .TSEL(2'b01)
+    );
 
     // CHALLENGE: drive one access on the falling edge; the rising edge in between performs it
-    // task automatic ut_cycle(input logic ceb, input logic web, input logic [4:0] a,
-    //                         input logic [31:0] d, input logic [31:0] bweb);
-    //     ut_CEB = ceb; ut_WEB = web; ut_A = a; ut_D = d; ut_BWEB = bweb;
-    //     @(negedge clk);
-    // endtask
+    task automatic ut_cycle(input logic ceb, input logic web, input logic [4:0] a,
+                            input logic [31:0] d, input logic [31:0] bweb);
+        ut_CEB = ceb; ut_WEB = web; ut_A = a; ut_D = d; ut_BWEB = bweb;
+        @(negedge clk);
+    endtask
 
-    // task automatic ut_expect(input string name, input logic [31:0] exp);
-    //     if (ut_Q !== exp) begin
-    //         $display("FAIL SRAM %s: Q=%h, expected %h", name, ut_Q, exp);
-    //         errors++;
-    //     end else
-    //         $display("PASS SRAM %s: Q=%h", name, ut_Q);
-    // endtask
+    task automatic ut_expect(input string name, input logic [31:0] exp);
+        if (ut_Q !== exp) begin
+            $display("FAIL SRAM %s: Q=%h, expected %h", name, ut_Q, exp);
+            errors++;
+        end else
+            $display("PASS SRAM %s: Q=%h", name, ut_Q);
+    endtask
 
-    // task automatic sram_unit_test();
-    //     @(negedge clk);
-    //     ut_cycle(0, 0, 5'd7, 32'hA5A5_5A5A, 32'h0);          // full write to address 7
-    //     ut_cycle(0, 0, 5'd8, 32'h1234_5678, 32'h0);          // full write to address 8
-    //     ut_cycle(0, 1, 5'd8, 32'h0, 32'h0);                  // read address 8
-    //     ut_expect("read address 8", 32'h1234_5678);
-    //     ut_CEB = 0; ut_WEB = 1; ut_A = 5'd7; #1;             // read address 7, before the edge
-    //     ut_expect("no new data before the clock edge", 32'h1234_5678);
-    //     @(negedge clk);
-    //     ut_expect("read address 7 one edge later", 32'hA5A5_5A5A);
-    //     ut_cycle(0, 0, 5'd7, 32'hFFFF_FFFF, 32'hFFFF_0000);  // write lower half only
-    //     ut_expect("Q unchanged by a write", 32'hA5A5_5A5A);
-    //     ut_cycle(0, 1, 5'd7, 32'h0, 32'h0);
-    //     ut_expect("BWEB masks the upper half", 32'hA5A5_FFFF);
-    //     ut_cycle(1, 1, 5'd8, 32'h0, 32'h0);                  // chip disabled
-    //     ut_expect("Q holds while disabled", 32'hA5A5_FFFF);
-    //     ut_cycle(1, 0, 5'd8, 32'h0, 32'h0);                  // write while disabled is ignored
-    //     ut_cycle(0, 1, 5'd8, 32'h0, 32'h0);
-    //     ut_expect("write ignored while disabled", 32'h1234_5678);
-    // endtask
+    task automatic sram_unit_test();
+        @(negedge clk);
+        ut_cycle(0, 0, 5'd7, 32'hA5A5_5A5A, 32'h0);          // full write to address 7
+        ut_cycle(0, 0, 5'd8, 32'h1234_5678, 32'h0);          // full write to address 8
+        ut_cycle(0, 1, 5'd8, 32'h0, 32'h0);                  // read address 8
+        ut_expect("read address 8", 32'h1234_5678);
+        ut_CEB = 0; ut_WEB = 1; ut_A = 5'd7; #1;             // read address 7, before the edge
+        ut_expect("no new data before the clock edge", 32'h1234_5678);
+        @(negedge clk);
+        ut_expect("read address 7 one edge later", 32'hA5A5_5A5A);
+        ut_cycle(0, 0, 5'd7, 32'hFFFF_FFFF, 32'hFFFF_0000);  // write lower half only
+        ut_expect("Q unchanged by a write", 32'hA5A5_5A5A);
+        ut_cycle(0, 1, 5'd7, 32'h0, 32'h0);
+        ut_expect("BWEB masks the upper half", 32'hA5A5_FFFF);
+        ut_cycle(1, 1, 5'd8, 32'h0, 32'h0);                  // chip disabled
+        ut_expect("Q holds while disabled", 32'hA5A5_FFFF);
+        ut_cycle(1, 0, 5'd8, 32'h0, 32'h0);                  // write while disabled is ignored
+        ut_cycle(0, 1, 5'd8, 32'h0, 32'h0);
+        ut_expect("write ignored while disabled", 32'h1234_5678);
+    endtask
+`endif
 
     // Testbench procedure
     initial begin
@@ -175,7 +197,9 @@ module memtest_tb;
         #20;
         reset = 0;
 
-        // sram_unit_test(); // CHALLENGE
+`ifdef SRAM_UNIT_TEST
+        sram_unit_test(); // CHALLENGE
+`endif
 
         // Task 2: two full write/read loops, checked by the scoreboard
         // repeat (140) @(posedge clk); // Task 3 will comment this line out
@@ -214,10 +238,12 @@ module memtest_tb;
         check_reads = 1;
 
         // Summary
+`ifndef NO_SRAM_PINS
         if (writes == 0 || reads == 0) begin
             $display("ERROR no SRAM accesses seen");
             errors++;
         end
+`endif
         if (errors == 0)
             $display("ALL CHECKS PASSED (%0d writes, %0d reads)", writes, reads);
         else

@@ -9,41 +9,43 @@
 ##
 ####################################################################
 
-set MACRO [get_cells $SRAM_INST]
+if { $RTL_SRAM } {
+    # No macro to size from or place, so size the core by utilisation
+    initialize_floorplan \
+        -site_def         $SITE_NAME \
+        -core_utilization $CORE_UTIL \
+        -side_ratio       $CORE_RATIO \
+        -core_offset      $CORE_OFFSET
+} else {
+    set MACRO [get_cells $SRAM_INST]
 
-# Sized from the macro, so a different memory still gets a core that
-# fits it. -side_length gives the core; -core_offset adds the die edge.
-set CORE_W [expr {[get_attribute $MACRO width]  + 2 * $MACRO_MARGIN}]
-set CORE_H [expr {[get_attribute $MACRO height] + $MACRO_MARGIN + $CELL_STRIP}]
+    # Sized from the macro, so a different memory still gets a core that
+    # fits it. -side_length gives the core; -core_offset adds the die edge.
+    set CORE_W [expr {[get_attribute $MACRO width]  + 2 * $MACRO_MARGIN}]
+    set CORE_H [expr {[get_attribute $MACRO height] + $MACRO_MARGIN + $CELL_STRIP}]
 
-initialize_floorplan \
-    -site_def    $SITE_NAME \
-    -side_length [list $CORE_W $CORE_H] \
-    -core_offset $CORE_OFFSET
+    initialize_floorplan \
+        -site_def    $SITE_NAME \
+        -side_length [list $CORE_W $CORE_H] \
+        -core_offset $CORE_OFFSET
 
-# Bottom left of the core, leaving the strip above it for the cells.
-set_cell_location \
-    -coordinates [list [expr {$CORE_OFFSET + $MACRO_MARGIN}] \
-                       [expr {$CORE_OFFSET + $MACRO_MARGIN}]] \
-    -orientation R0 \
-    $MACRO
+    # Bottom left of the core, leaving the strip above it for the cells.
+    set_cell_location \
+        -coordinates [list [expr {$CORE_OFFSET + $MACRO_MARGIN}] \
+                           [expr {$CORE_OFFSET + $MACRO_MARGIN}]] \
+        -orientation R0 \
+        $MACRO
 
-# Or esle placement treats it as something it may move.
-set_attribute $MACRO is_fixed true
+    # Or esle placement treats it as something it may move.
+    set_attribute $MACRO is_fixed true
 
-# Cells placed hard against a macro cannot be routed to, and the router
-# needs room to turn.
-create_keepout_margin \
-    -type  hard \
-    -outer [list $MACRO_HALO $MACRO_HALO $MACRO_HALO $MACRO_HALO] \
-    $MACRO
-
-# CHALLENGE: comment out lines 12-39 (macro sizing, placement, keepout) and use:
-# initialize_floorplan \
-#     -site_def         $SITE_NAME \
-#     -core_utilization $CORE_UTIL \
-#     -side_ratio       {1 1} \
-#     -core_offset      $CORE_OFFSET
+    # Cells placed hard against a macro cannot be routed to, and the router
+    # needs room to turn.
+    create_keepout_margin \
+        -type  hard \
+        -outer [list $MACRO_HALO $MACRO_HALO $MACRO_HALO $MACRO_HALO] \
+        $MACRO
+}
 
 ####################################################################
 ## Power and ground nets
@@ -92,40 +94,41 @@ set_pg_strategy ring_strategy -core \
     -extension [list [list [list nets: [list $PWR_NET $GND_NET]] \
                            [list stop: design_boundary_and_generate_pin]]]
 
-# A macro draws its current in one place rather than spread along a
-# row, so the cell rails alone drop more voltage than it tolerates.
-create_pg_ring_pattern macro_ring_pattern \
-    -horizontal_layer   $RING_H_LAYER \
-    -horizontal_width   [list $MACRO_RING_WIDTH] \
-    -horizontal_spacing [list $MACRO_RING_SPACING] \
-    -vertical_layer     $RING_V_LAYER \
-    -vertical_width     [list $MACRO_RING_WIDTH] \
-    -vertical_spacing   [list $MACRO_RING_SPACING]
+if { !$RTL_SRAM } {
+    # A macro draws its current in one place rather than spread along a
+    # row, so the cell rails alone drop more voltage than it tolerates.
+    create_pg_ring_pattern macro_ring_pattern \
+        -horizontal_layer   $RING_H_LAYER \
+        -horizontal_width   [list $MACRO_RING_WIDTH] \
+        -horizontal_spacing [list $MACRO_RING_SPACING] \
+        -vertical_layer     $RING_V_LAYER \
+        -vertical_width     [list $MACRO_RING_WIDTH] \
+        -vertical_spacing   [list $MACRO_RING_SPACING]
 
-set_pg_strategy macro_ring_strategy \
-    -macros  $MACRO \
-    -pattern [list [list pattern: macro_ring_pattern] \
-                   [list nets: [list $GND_NET $PWR_NET]] \
-                   [list offset: [list $MACRO_RING_OFFSET $MACRO_RING_OFFSET]]]
+    set_pg_strategy macro_ring_strategy \
+        -macros  $MACRO \
+        -pattern [list [list pattern: macro_ring_pattern] \
+                       [list nets: [list $GND_NET $PWR_NET]] \
+                       [list offset: [list $MACRO_RING_OFFSET $MACRO_RING_OFFSET]]]
 
-# Without this the ring surrounds a block it is not connected to.
-create_pg_macro_conn_pattern macro_conn_pattern -pin_conn_type scattered_pin
+    # Without this the ring surrounds a block it is not connected to.
+    create_pg_macro_conn_pattern macro_conn_pattern -pin_conn_type scattered_pin
 
-set_pg_strategy macro_conn_strategy \
-    -macros  $MACRO \
-    -pattern [list [list pattern: macro_conn_pattern] \
-                   [list nets: [list $PWR_NET $GND_NET]]]
+    set_pg_strategy macro_conn_strategy \
+        -macros  $MACRO \
+        -pattern [list [list pattern: macro_conn_pattern] \
+                       [list nets: [list $PWR_NET $GND_NET]]]
+}
 
 # Rails are on M1 and the rings above it, so every connection is a via.
 set_pg_strategy_via_rule pg_via_rule \
     -via_rule [list [list intersection: adjacent] [list via_master: default]]
 
-# CHALLENGE: comment out macro_ring_pattern, macro_ring_strategy,
-# macro_conn_pattern, macro_conn_strategy, and these two:
-
 # The rails stop at the first thing they meet, so they go last.
-compile_pg -strategies macro_ring_strategy -via_rule pg_via_rule
-compile_pg -strategies macro_conn_strategy
+if { !$RTL_SRAM } {
+    compile_pg -strategies macro_ring_strategy -via_rule pg_via_rule
+    compile_pg -strategies macro_conn_strategy
+}
 compile_pg -strategies ring_strategy       -via_rule pg_via_rule
 compile_pg -strategies rail_strategy       -via_rule pg_via_rule
 

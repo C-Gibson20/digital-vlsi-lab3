@@ -16,14 +16,32 @@ SDF_CORNER ?= tc
 OUT  := outputs/$(FLOW)
 SIM  := sim
 LOGS := logs
-SRC  := src/$(DESIGN).sv src/counter.sv src/control.sv src/PRBS.sv src/signature_analyser.sv src/xor_array.sv src/comparator.sv # src/SRAM32X32.sv
+SRC  := src/$(DESIGN).sv src/counter.sv src/control.sv src/PRBS.sv src/signature_analyser.sv src/xor_array.sv src/comparator.sv
 TB   := src/$(DESIGN)_tb.sv
+
+# Which SRAM memtest uses: the Task 1 macro (default), or the challenge
+# RTL SRAM with MEM=rtl, e.g. make sim-rtl MEM=rtl
+MEM ?= macro
 
 # The memory's own Verilog model, needed by every simulation including
 # gate level: a hard macro is never in the netlist.
 SRAM_DIR    := ts1n65lpll32x32m4_220a
 SRAM_CORNER := tt1p2v25c
-SRAM_V      := $(SRAM_DIR)/VERILOG/$(SRAM_DIR)_$(SRAM_CORNER).v
+SRAM_MODEL  := $(SRAM_DIR)/VERILOG/$(SRAM_DIR)_$(SRAM_CORNER).v
+ifeq ($(MEM),rtl)
+# No macro model. The RTL SRAM is in SRC, or flattened into the netlist.
+# RTL_SRAM selects it in memtest.sv and tells the testbench its pins
+# vanish at gate level.
+SRC         += src/SRAM32X32.sv
+SRAM_V      :=
+SIM_DEFS    := +define+RTL_SRAM
+else
+SRAM_V      := $(SRAM_MODEL)
+SIM_DEFS    :=
+endif
+
+# CHALLENGE: memory block on its own for sim-sram, SRAM32X32 or sram_macro
+BLOCK ?= SRAM32X32
 
 # -full64        the 32-bit binary is broken on this server
 # -timescale=    the netlist declares none and VCS rejects a mix
@@ -31,10 +49,10 @@ SRAM_V      := $(SRAM_DIR)/VERILOG/$(SRAM_DIR)_$(SRAM_CORNER).v
 # +error+30      the default of 10 hides whole categories of failure
 # -kdb           lets Verdi show source and schematic, not just waves
 VCS := vcs -full64 -sverilog -timescale=1ns/1ps -debug_access+all -kdb \
-       +neg_tchk +error+30
+       +neg_tchk +error+30 $(SIM_DEFS)
 
 .DEFAULT_GOAL := help
-.PHONY: sram sim-rtl sim-synth sim-layout waves waves-verdi clean help
+.PHONY: sram sim-rtl sim-synth sim-layout sim-sram sim-sram-layout waves waves-verdi clean help
 
 # Display the header above, so the printed authors/version/date stay in sync.
 define show_header
@@ -125,7 +143,18 @@ sim-layout:
 	    $(OUT)/$(DESIGN)_layout.v $(TB) \
 	    -sdf typ:$(DESIGN)_tb.dut:$(OUT)/$(DESIGN)_$(SDF_CORNER).sdf,layout_$(FLOW))
 
-# CHALLENGE: drop $(SRAM_V) from sim-rtl, sim-synth and sim-layout
+## sim-sram: test a memory block on its own (BLOCK=SRAM32X32 or sram_macro)
+# The macro model is always compiled, since sram_macro wraps the macro.
+sim-sram:
+	$(call run_sim,$(VCS) +define+SRAM_DUT=$(BLOCK) src/SRAM32X32.sv src/sram_macro.sv \
+	    $(SRAM_MODEL) src/sram_tb.sv,sram_$(BLOCK))
+
+## sim-sram-layout: the same test on a block's routed layout with SDF
+# Needs TOP=$(BLOCK) through fc_shell first; reads outputs/<flow>/$(BLOCK)/.
+sim-sram-layout:
+	$(call run_sim,$(VCS) +sdfverbose +define+SRAM_DUT=$(BLOCK) $$SYN_SIM_MODELS $(SRAM_MODEL) \
+	    $(OUT)/$(BLOCK)/$(BLOCK)_layout.v src/sram_tb.sv \
+	    -sdf typ:sram_tb.dut:$(OUT)/$(BLOCK)/$(BLOCK)_$(SDF_CORNER).sdf,sram_$(BLOCK)_layout_$(FLOW))
 
 ####################################################################
 # Waveforms
